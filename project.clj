@@ -13,13 +13,16 @@
                  [hiccup "1.0.5"]
                  [yogthos/config "1.1.7"]
                  [org.clojure/clojurescript "1.10.597"
-                  :scope "provided"]
+                  :scope "provided"
+                  :exclusions [com.google.protobuf/protobuf-java]] ;; need a much later version of protobuf for ovotech/clj-gcp
                  [metosin/reitit "0.3.10"]
                  [pez/clerk "1.0.0"]
                  [venantius/accountant "0.2.5"
                   :exclusions [org.clojure/tools.reader]]
                  [integrant "0.8.0"]
-                 [integrant/repl "0.3.1"]]
+                 [integrant/repl "0.3.1"]
+                 [cheshire "5.10.0"]
+                 [ovotech/clj-gcp "0.4.2-SNAPSHOT"]]
 
   :plugins [[lein-environ "1.1.0"]
             [lein-cljsbuild "1.1.7"]
@@ -37,7 +40,7 @@
    [:cljsbuild :builds :app :compiler :output-dir]
    [:cljsbuild :builds :app :compiler :output-to]]
 
-  :source-paths ["src/clj" "src/cljc" "src/cljs"]
+  :source-paths ["src/clj" "src/cljc" "src/cljs" "config"]
   :resource-paths ["resources" "target/cljsbuild"]
 
   :minify-assets
