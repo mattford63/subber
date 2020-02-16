@@ -2,6 +2,7 @@
   (:require
    [reitit.ring :as reitit-ring]
    [subber.middleware :refer [middleware]]
+   [subber.middleware.pubsub :refer [pubsub]]
    [hiccup.page :refer [include-js include-css html5]]
    [config.core :refer [env]]))
 
@@ -32,7 +33,7 @@
    :headers {"Content-Type" "text/html"}
    :body (loading-page)})
 
-(def app
+(defn app [pubsub-handler]
   (reitit-ring/ring-handler
    (reitit-ring/router
     [["/" {:get {:handler index-handler}}]
@@ -44,4 +45,4 @@
    (reitit-ring/routes
     (reitit-ring/create-resource-handler {:path "/" :root "/public"})
     (reitit-ring/create-default-handler))
-   {:middleware middleware}))
+   {:middleware (conj middleware)}))

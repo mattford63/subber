@@ -17,7 +17,9 @@
                  [metosin/reitit "0.3.10"]
                  [pez/clerk "1.0.0"]
                  [venantius/accountant "0.2.5"
-                  :exclusions [org.clojure/tools.reader]]]
+                  :exclusions [org.clojure/tools.reader]]
+                 [integrant "0.8.0"]
+                 [integrant/repl "0.3.1"]]
 
   :plugins [[lein-environ "1.1.0"]
             [lein-cljsbuild "1.1.7"]
@@ -29,7 +31,7 @@
 
   :min-lein-version "2.5.0"
   :uberjar-name "subber.jar"
-  :main subber.server
+  :main subber.system
   :clean-targets ^{:protect false}
   [:target-path
    [:cljsbuild :builds :app :compiler :output-dir]
@@ -62,25 +64,17 @@
               :output-dir "target/cljsbuild/public/js/out"
               :source-map true
               :optimizations :none
-              :pretty-print  true}}
-
-
-
-            }
-   }
+              :pretty-print  true}}}}
 
   :figwheel
   {:http-server-root "public"
-   :server-port 3449
    :nrepl-port 7002
    :nrepl-middleware [cider.piggieback/wrap-cljs-repl
                       cider.nrepl/cider-middleware
                       refactor-nrepl.middleware/wrap-refactor
                       ]
    :css-dirs ["resources/public/css"]
-   :ring-handler subber.handler/app}
-
-
+   }
 
   :profiles {:dev {:repl-options {:init-ns subber.repl}
                    :dependencies [[cider/piggieback "0.4.2"]
@@ -90,22 +84,16 @@
                                   [prone "2019-07-08"]
                                   [figwheel-sidecar "0.5.19"]
                                   [nrepl "0.6.0"]
-                                  [pjstadig/humane-test-output "0.10.0"]
-
- ]
-
+                                  [pjstadig/humane-test-output "0.10.0"]]
                    :source-paths ["env/dev/clj"]
                    :plugins [[lein-figwheel "0.5.19"]
                              [cider/cider-nrepl "0.24.0-SNAPSHOT"]
                              [org.clojure/tools.namespace "0.3.0-alpha4"
                               :exclusions [org.clojure/tools.reader]]
                              [refactor-nrepl "2.5.0-SNAPSHOT"
-                              :exclusions [org.clojure/clojure]]
-]
-
+                              :exclusions [org.clojure/clojure]]]
                    :injections [(require 'pjstadig.humane-test-output)
                                 (pjstadig.humane-test-output/activate!)]
-
                    :env {:dev true}}
 
              :uberjar {:hooks [minify-assets.plugin/hooks]
