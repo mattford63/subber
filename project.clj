@@ -91,15 +91,15 @@
                                   [figwheel-sidecar "0.5.19"]
                                   [nrepl "0.6.0"]
                                   [pjstadig/humane-test-output "0.10.0"]
-                                  
+
  ]
 
                    :source-paths ["env/dev/clj"]
                    :plugins [[lein-figwheel "0.5.19"]
-                             [cider/cider-nrepl "0.21.1"]
+                             [cider/cider-nrepl "0.24.0-SNAPSHOT"]
                              [org.clojure/tools.namespace "0.3.0-alpha4"
                               :exclusions [org.clojure/tools.reader]]
-                             [refactor-nrepl "2.4.0"
+                             [refactor-nrepl "2.5.0-SNAPSHOT"
                               :exclusions [org.clojure/clojure]]
 ]
 
