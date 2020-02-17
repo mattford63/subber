@@ -26,14 +26,23 @@
 ;; -------------------------
 ;; Page components
 
+;; any reagent atom creates a subscription that is automatically updated
+;; whenever state is changed.
+(def app-state
+  (atom {:message "Hello from subber"}))
+
+;; here we swap state after a timeout of 5seconds
+(js/setTimeout
+ (fn [] (swap! app-state assoc-in [:message] "Gotta get a big one"))
+ 5000)
+
 (defn home-page []
   (fn []
     [:span.main
-     [:h1 "Welcome to subber"]
+     [:h1 (:message @app-state)]
      [:ul
       [:li [:a {:href (path-for :items)} "Items of subber"]]
       [:li [:a {:href "/broken/link"} "Broken link"]]]]))
-
 
 
 (defn items-page []
