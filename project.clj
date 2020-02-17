@@ -22,7 +22,8 @@
                  [integrant "0.8.0"]
                  [integrant/repl "0.3.1"]
                  [cheshire "5.10.0"]
-                 [ovotech/clj-gcp "0.4.2-SNAPSHOT"]]
+                 [ovotech/clj-gcp "0.4.2-SNAPSHOT"]
+                 [http-kit "2.3.0"]]
 
   :plugins [[lein-environ "1.1.0"]
             [lein-cljsbuild "1.1.7"]
