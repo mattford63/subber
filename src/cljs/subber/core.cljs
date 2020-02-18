@@ -12,35 +12,8 @@
    [taoensso.timbre :as timbre :refer-macros (tracef debugf infof warnf errorf)]
    [taoensso.encore :as encore :refer-macros (have have?)]))
 
-;; -------------------------
-;; Routes
-
-(def router
-  (reitit/router
-   [["/" :index]
-    ["/items"
-     ["" :items]
-     ["/:item-id" :item]]
-    ["/about" :about]]))
-
-(defn path-for [route & [params]]
-  (if params
-    (:path (reitit/match-by-name router route params))
-    (:path (reitit/match-by-name router route))))
-
-(path-for :about)
-;; -------------------------
-;; Page components
-
-;; any reagent atom creates a subscription that is automatically updated
-;; whenever state is changed.
-(def app-state
-  (atom {:message "Hello from subber"}))
-
-;; here we swap state after a timeout of 5seconds
-(js/setTimeout
- (fn [] (swap! app-state assoc-in [:message] "Gotta get a big one"))
- 5000)
+;; ---------------------
+;; Sente init
 
 (def output-el (or (.getElementById js/document "output") "matt"))
 
@@ -58,7 +31,6 @@
   (->output! "CSRF token detected in HTML, great!")
   (->output! "CSRF token NOT detected in HTML, default Sente config will reject requests"))
 
-;;; Add this: --->
 (let [{:keys [chsk ch-recv send-fn state]}
       (sente/make-channel-socket-client! "/chsk" ; Note the same path as before
                                          ?csrf-token
@@ -70,24 +42,98 @@
   (def chsk-state state)   ; Watchable, read-only atom
   )
 
-(chsk-send! ; Using Sente
- [:some/request-id {:name "Rich Hickey" :type "Awesome"}] ; Event
- 8000 ; Timeout
- ;; Optional callback:
- ;; (fn [reply] ; Reply is arbitrary Clojure data
- ;;   (if (sente/cb-success? reply) ; Checks for :chsk/closed, :chsk/timeout, :chsk/error
- ;;     (do-something! reply)
- ;;     (error-handler!)))
- )
+;; -------------------------
+;; Sente Event Handlers -- lifted from
+;;   https://github.com/ptaoussanis/sente/blob/master/example-project/src/example/client.cljs
+
+(defmulti -event-msg-handler
+  "Multimethod to handle Sente `event-msg`s"
+  :id ; Dispatch on event-id
+  )
+
+(defn event-msg-handler
+  "Wraps `-event-msg-handler` with logging, error catching, etc."
+  [{:as ev-msg :keys [id ?data event]}]
+  (-event-msg-handler ev-msg))
+
+(defmethod -event-msg-handler
+  :default ; Default/fallback case (no other matching handler)
+  [{:as ev-msg :keys [event]}]
+  (->output! "Unhandled event: %s" event))
+
+(defmethod -event-msg-handler :chsk/state
+  [{:as ev-msg :keys [?data]}]
+  (let [[old-state-map new-state-map] (have vector? ?data)]
+    (if (:first-open? new-state-map)
+      (->output! "Channel socket successfully established!: %s" new-state-map)
+      (->output! "Channel socket state change: %s"              new-state-map))))
+
+(defmethod -event-msg-handler :chsk/recv
+  [{:as ev-msg :keys [?data]}]
+  (->output! "Push event from server: %s" ?data))
+
+(defmethod -event-msg-handler :chsk/handshake
+  [{:as ev-msg :keys [?data]}]
+  (let [[?uid ?csrf-token ?handshake-data] ?data]
+    (->output! "Handshake: %s" ?data)))
+
+;; -------------------------
+;; Sente event router (our `event-msg-handler` loop)
+;;
+(defonce sente_router_ (atom nil))
+(defn  stop-router! [] (when-let [stop-f @sente_router_] (stop-f)))
+(defn start-router! []
+  (stop-router!)
+  (reset! sente_router_
+          (sente/start-client-chsk-router!
+           ch-chsk event-msg-handler)))
+
+;; -------------------------
+;; UI - TODO unclear why this doesn't work
+;; (when-let [target-el (.getElementById js/document "btn1")]
+;;   (.addEventListener target-el "click"
+;;                      (fn [ev]
+;;                        (->output! "Button 1 was clicked (won't receive any reply from server)")
+;;                        (chsk-send! [:example/button1 {:had-a-callback? "nope"}]))))
+
+
+;; -------------------------
+;; Routes
+
+(def router
+  (reitit/router
+   [["/" :index]
+    ["/items"
+     ["" :items]
+     ["/:item-id" :item]]
+    ["/about" :about]]))
+
+(defn path-for [route & [params]]
+  (if params
+    (:path (reitit/match-by-name router route params))
+    (:path (reitit/match-by-name router route))))
+
+(path-for :about)
+
+;; -------------------------
+;; Page components
+
+(def buttons
+  [:p
+   [:button#btn1 {:type "button"
+                  :on-click (fn [ev]
+                              (->output! "Button 1 was clicked (won't receive any reply from server)")
+                              (chsk-send! [:example/button1 {:had-a-callback? "nope"}]))} "chsk-send! (w/o reply)"]
+   [:button#btn2 {:type "button"} "chsk-send! (with reply)"]])
 
 (defn home-page []
   (fn []
     [:span.main
-     [:h1 (:message @app-state)]
+     [:h1 "Welcome to Subber"]
      [:ul
       [:li [:a {:href (path-for :items)} "Items of subber"]]
-      [:li [:a {:href "/broken/link"} "Broken link"]]]]))
-
+      [:li [:a {:href "/broken/link"} "Broken link"]]]
+     buttons]))
 
 (defn items-page []
   (fn []
@@ -111,7 +157,6 @@
 (defn about-page []
   (fn [] [:span.main
           [:h1 "About subber"]]))
-
 
 ;; -------------------------
 ;; Translate routes -> page components
@@ -163,3 +208,7 @@
       (boolean (reitit/match-by-path router path)))})
   (accountant/dispatch-current!)
   (mount-root))
+
+;; start sente router
+(defn start! [] (start-router!))
+(defonce _start-once (start!))
