@@ -23,7 +23,10 @@
                  [integrant/repl "0.3.1"]
                  [cheshire "5.10.0"]
                  [ovotech/clj-gcp "0.4.2-SNAPSHOT"]
-                 [http-kit "2.3.0"]]
+                 [http-kit "2.3.0"]
+                 [com.taoensso/sente "1.15.0"]
+                 [org.clojure/core.async "0.7.559"]
+                 [ring/ring-anti-forgery "1.3.0"]]
 
   :plugins [[lein-environ "1.1.0"]
             [lein-cljsbuild "1.1.7"]

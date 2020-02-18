@@ -1,10 +1,16 @@
 (ns subber.core
+  (:require-macros
+   [cljs.core.async.macros :as asyncm :refer (go go-loop)])
   (:require
    [reagent.core :as reagent :refer [atom]]
    [reagent.session :as session]
    [reitit.frontend :as reitit]
    [clerk.core :as clerk]
-   [accountant.core :as accountant]))
+   [accountant.core :as accountant]
+   [cljs.core.async :as async :refer (<! >! put! chan)]
+   [taoensso.sente :as sente :refer (cb-success?)]
+   [taoensso.timbre :as timbre :refer-macros (tracef debugf infof warnf errorf)]
+   [taoensso.encore :as encore :refer-macros (have have?)]))
 
 ;; -------------------------
 ;; Routes
@@ -35,6 +41,44 @@
 (js/setTimeout
  (fn [] (swap! app-state assoc-in [:message] "Gotta get a big one"))
  5000)
+
+(def output-el (or (.getElementById js/document "output") "matt"))
+
+(defn ->output! [fmt & args]
+  (let [msg (apply encore/format fmt args)]
+    (timbre/debug msg)
+    (aset output-el "value" (str "• " (.-value output-el) "\n" msg))
+    (aset output-el "scrollTop" (.-scrollHeight output-el))))
+
+(def ?csrf-token
+  (when-let [el (.getElementById js/document "sente-csrf-token")]
+    (.getAttribute el "data-csrf-token")))
+
+(if ?csrf-token
+  (->output! "CSRF token detected in HTML, great!")
+  (->output! "CSRF token NOT detected in HTML, default Sente config will reject requests"))
+
+;;; Add this: --->
+(let [{:keys [chsk ch-recv send-fn state]}
+      (sente/make-channel-socket-client! "/chsk" ; Note the same path as before
+                                         ?csrf-token
+                                         {:type :auto ; e/o #{:auto :ajax :ws}
+                                          })]
+  (def chsk       chsk)
+  (def ch-chsk    ch-recv) ; ChannelSocket's receive channel
+  (def chsk-send! send-fn) ; ChannelSocket's send API fn
+  (def chsk-state state)   ; Watchable, read-only atom
+  )
+
+(chsk-send! ; Using Sente
+ [:some/request-id {:name "Rich Hickey" :type "Awesome"}] ; Event
+ 8000 ; Timeout
+ ;; Optional callback:
+ ;; (fn [reply] ; Reply is arbitrary Clojure data
+ ;;   (if (sente/cb-success? reply) ; Checks for :chsk/closed, :chsk/timeout, :chsk/error
+ ;;     (do-something! reply)
+ ;;     (error-handler!)))
+ )
 
 (defn home-page []
   (fn []
