@@ -123,8 +123,22 @@
    [:button#btn1 {:type "button"
                   :on-click (fn [ev]
                               (->output! "Button 1 was clicked (won't receive any reply from server)")
-                              (chsk-send! [:example/button1 {:had-a-callback? "nope"}]))} "chsk-send! (w/o reply)"]
-   [:button#btn2 {:type "button"} "chsk-send! (with reply)"]])
+                              (chsk-send! [:example/button1 {:had-a-callback? "nope"}]))}
+    "chsk-send! (w/o reply)"]
+   [:button#btn2 {:type "button"
+                  :on-click (fn [ev]
+                              (->output! "Button 2 was clicked (should see a response from server)")
+                              (chsk-send! [:example/button2 {:had-a-callback? "yes"}]
+                                          5000
+                                          (fn [cb-reply] (->output! "Callback reply: %s" cb-reply))))}
+    "chsk-send! (with reply)"]
+   [:button#btn3 {:type "button"
+                  :on-click (fn [ev]
+                              (->output! "Button 3 was clicked (should see a response from server)")
+                              (chsk-send! [:fn/inc {:counter 1}]
+                                          5000
+                                          (fn [cb-reply] (->output! "Inc: %s" cb-reply))))}
+    "inc"]])
 
 (defn home-page []
   (fn []

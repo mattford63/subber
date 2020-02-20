@@ -1,6 +1,6 @@
 (ns subber.system
     (:require
-     [subber.handler :refer [app]]
+     [subber.handler :refer [app sente-start-router! sente-stop-router!]]
      [config.core :refer [env]]
      [ring.adapter.jetty :refer [run-jetty]]
      [ring.server.standalone :refer [serve]]
@@ -17,8 +17,10 @@
           :pubsub/gcp nil}
    :repl {:adapter/http-kit {:port (or (env :port) 3000)
                              :handler (ig/ref :handler/app-dev)}
-          :handler/app-dev {:pubsub (ig/ref :pubsub/gcp)}
-          :pubsub/gcp nil}})
+          :handler/app-dev {:pubsub (ig/ref :pubsub/gcp)
+                            :sente (ig/ref :ws-router/sente)}
+          :pubsub/gcp nil
+          :ws-router/sente nil}})
 
 (defmethod ig/init-key :adapter/jetty [_ {:keys [handler] :as opts}]
   (run-jetty handler (-> opts
@@ -45,6 +47,9 @@
 (defmethod ig/init-key :pubsub/gcp [_ _]
   {:fools "gold"})
 
+(defmethod ig/init-key :ws-router/sente [_ _]
+  (sente-start-router!))
+
 (defmethod ig/halt-key! :adapter/jetty [_ jetty]
    (.stop jetty))
 
@@ -53,6 +58,9 @@
 
 (defmethod ig/halt-key! :adapter/http-kit [_ server]
   (server))
+
+(defmethod ig/halt-key! :ws-router/sente [_ server]
+  (sente-stop-router!))
 
 (defn -main [& args]
   (ig/init (:prod config)))

@@ -10,7 +10,12 @@
    [ring.middleware.params :refer [wrap-params]]
    [ring.middleware.keyword-params :refer [wrap-keyword-params]]
    [ring.middleware.anti-forgery :as anti-forgery :refer [wrap-anti-forgery]]
-   [ring.middleware.session :refer [wrap-session]]))
+   [ring.middleware.session :refer [wrap-session]]
+   [clojure.core.async :as async  :refer (<! <!! >! >!! put! chan go go-loop)]
+   [taoensso.encore    :as encore :refer (have have?)]
+   [taoensso.timbre    :as timbre :refer (tracef debugf infof warnf errorf)]
+   [taoensso.sente     :as sente]
+   ))
 
 (def mount-target
   [:div#app
@@ -40,12 +45,13 @@
    :headers {"Content-Type" "text/html"}
    :body (loading-page)})
 
-(defn pubsub-handler
-  [_req]
+(defn pubsub-handler  [_req]
   {:status 200
    :headers {"Content-Type" "text/html"}
    :body (clojure.pprint/pprint _req)})
 
+;; Sente Channel Socket
+;;
 (let [{:keys [ch-recv send-fn connected-uids
               ajax-post-fn ajax-get-or-ws-handshake-fn]}
       (sente/make-channel-socket! (get-sch-adapter) {})]
@@ -57,6 +63,50 @@
   (def connected-uids                connected-uids) ; Watchable, read-only atom
   )
 
+;; Sente Event Handler
+;;
+
+(defmulti -event-msg-handler
+  "Multimethod to handle Sente `event-msg`s"
+  :id ; Dispatch on event-id
+  )
+
+(defn event-msg-handler
+  "Wraps `-event-msg-handler`"
+  [{:as ev-msg :keys [id ?data event]}]
+  (-event-msg-handler ev-msg)
+  ;; (future (-event-msg-handler ev-msg))
+  )
+
+(defmethod -event-msg-handler
+  :default
+  [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
+  "Default event message handler"
+  "default"
+  (let [session (:session ring-req)
+        uid (:uid session)]
+    (debugf "Unhandled event: %s" event)
+    (when ?reply-fn
+      (?reply-fn {:unmatched-event-as-echoed-from-server event}))))
+
+(defmethod -event-msg-handler
+  :fn/inc
+  [{:as ev-msg :keys [?data ?reply-fn]}]
+  "increment a number"
+  "inc"
+  (when ?reply-fn
+    (?reply-fn (update-in ?data [:counter] inc))))
+
+;; Sente event router
+(defonce sente_router_ (atom nil))
+(defn sente-stop-router! [] (when-let [stop-fn @sente_router_] (stop-fn)))
+(defn sente-start-router! []
+  (sente-stop-router!)
+  (reset! sente_router_
+          (sente/start-server-chsk-router! ch-chsk event-msg-handler)))
+
+
+;; Handler
 (defn app [ps]
   (reitit-ring/ring-handler
    (reitit-ring/router
