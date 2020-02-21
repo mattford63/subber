@@ -21,6 +21,7 @@
    :repl {:adapter/http-kit {:port (or (env :port) 3000)
                              :handler (ig/ref :handler/app-dev)}
           :handler/app-dev {:subscriber (ig/ref :clj-gcp.pub-sub.core/subscriber)
+                            :publisher (ig/ref :pubsub/publisher)
                             :ws-router (ig/ref :ws-router/sente)
                             :metrics-registry (ig/ref :prometheus/collector-registry)}
           :clj-gcp.pub-sub.core/subscriber {:handler pubsub-mw/handler ;; is the pattern of having each component's init-key held within it's source code files a nice one?
@@ -30,8 +31,10 @@
                                             :metrics-registry (ig/ref :prometheus/collector-registry)
                                             :json? false
                                             }
+          :pubsub/publisher {:project-id (env :project-id)
+                             :topic-id "DELETEME.subber"}
           :prometheus/collector-registry nil
-          :ws-router/sente nil}})
+          :ws-router/sente {:publisher (ig/ref :pubsub/publisher)}}})
 
 
 ;; ------------------
@@ -62,14 +65,17 @@
 (defmethod ig/init-key :pubsub/gcp [_ _]
   {:fools "gold"})
 
-(defmethod ig/init-key :ws-router/sente [_ _]
-  {:router-stop-fn (sente-mw/start-router!) ;; pattern: services return the fn to stop them.
+(defmethod ig/init-key :ws-router/sente [_ opts]
+  {:router-stop-fn (sente-mw/start-router! opts) ;; pattern: services return the fn to stop them.
    :ring-ajax-post sente-mw/ring-ajax-post ;; is it sensible to manage these calls like this?
    :ring-ajax-get-or-ws-handshake sente-mw/ring-ajax-get-or-ws-handshake})
 
 (defmethod ig/init-key :prometheus/collector-registry [_ _]
   (-> (prometheus/collector-registry)
       pubsub-mw/metrics-registry))
+
+(defmethod ig/init-key :pubsub/publisher [_ {:keys [project-id topic-id]}]
+  (pubsub-mw/publisher project-id topic-id))
 
 ;; -------------------------
 ;; Halt methods

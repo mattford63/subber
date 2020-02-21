@@ -57,5 +57,11 @@
 
 ;; Sente event router
 (defn stop-router! [router] (router))
-(defn start-router! []
+
+(defn start-router! [{:keys [publisher]}]
+  (defmethod -event-msg-handler ;; this looks horrible!! Must be a better way...
+    :pubsub/publish
+    [{:as ev-msg :keys [?data]}]
+    "Publish data to pubsub"
+    (publisher (:text ?data)))
   (sente/start-server-chsk-router! ch-chsk event-msg-handler))

@@ -140,6 +140,60 @@
                                           (fn [cb-reply] (->output! "Inc: %s" cb-reply))))}
     "inc"]])
 
+;; https://stackoverflow.com/questions/41680143/how-is-a-chat-input-field-defined-in-reagent?noredirect=1&lq=1
+(defn update-rows
+  [row-count-atom max-rows dom-node value]
+  (let [field-height   (.-clientHeight dom-node)
+        content-height (.-scrollHeight dom-node)]
+    (cond
+      (and (not-empty value)
+           (> content-height field-height)
+           (< @row-count-atom max-rows))
+      (swap! row-count-atom inc)
+
+      (empty? value)
+      (reset! row-count-atom 1))))
+
+(defn expanding-textarea
+  "a textarea which expands up to max-rows as it's content expands"
+  [{:keys [max-rows] :as opts}]
+  (let [dom-node      (atom nil)
+        row-count     (atom 1)
+        written-text  (atom "")
+        enter-keycode 13]
+    (reagent/create-class
+     {:display-name "expanding-textarea"
+
+      :component-did-mount
+      (fn [ref]
+        (reset! dom-node (reagent/dom-node ref))
+        (update-rows row-count max-rows @dom-node @written-text))
+
+      :component-did-update
+      (fn []
+        (update-rows row-count max-rows @dom-node @written-text))
+
+      :reagent-render
+      (fn [{:keys [on-change-fn] :as opts}]
+        (let [opts (dissoc opts :max-rows)]
+          [:textarea
+           (merge opts
+                  {:rows        @row-count
+                   :value       @written-text
+                   :on-change   (fn [e]
+                                  (reset! written-text (-> e .-target .-value)))
+                   :on-key-down (fn [e]
+                                  (let [key-code (.-keyCode e)]
+                                    (when (and (= enter-keycode key-code)
+                                               (not (.-shiftKey e))
+                                               (not (.-altKey e))
+                                               (not (.-ctrlKey e))
+                                               (not (.-metaKey e)))
+                                      (do
+                                        (.preventDefault e)
+                                        (chsk-send! [:pubsub/publish {:text @written-text}])
+                                        (reset! written-text "")))))})]))})))
+
 (defn home-page []
   (fn []
     [:span.main
@@ -147,7 +201,8 @@
      [:ul
       [:li [:a {:href (path-for :items)} "Items of subber"]]
       [:li [:a {:href "/broken/link"} "Broken link"]]]
-     buttons]))
+     buttons
+     [expanding-textarea {:max-rows 10}]]))
 
 (defn items-page []
   (fn []

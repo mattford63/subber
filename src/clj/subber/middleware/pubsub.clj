@@ -48,6 +48,12 @@
         {:description "life-cycle of pub-sub msgs",
          :labels      [:state]}))))
 
+(defn publish [project topic msg]
+  (mqu/pubsub-publish msg project topic))
+
+(defn publisher [project topic]
+  (partial publish project topic))
+
 (comment
   (create-topic)
   (delete-topic)
