@@ -5,6 +5,7 @@
             [clj-gcp.pub-sub.core :as sut]
             [config.core :refer [env]]
             [iapetos.core :as prometheus]
+            [iapetos.collector.ring :as ring]
             )
   (:import java.util.UUID))
 
@@ -39,8 +40,8 @@
     (see-req! seen-msgs msg))
   (map #(assoc % :ok? true) msgs))
 
-(def metrics-registry
-  (-> (prometheus/collector-registry)
+(defn metrics-registry [registry]
+  (-> registry
       (prometheus/register
        (prometheus/counter
         :clj-gcp.pub-sub.core/message-count

@@ -8,6 +8,7 @@
    [ring.middleware.keyword-params :refer [wrap-keyword-params]]
    [ring.middleware.anti-forgery :as anti-forgery :refer [wrap-anti-forgery]]
    [ring.middleware.session :refer [wrap-session]]
+   [iapetos.export :as prometheus-export]
    ))
 
 (def mount-target
@@ -38,32 +39,38 @@
    :headers {"Content-Type" "text/html"}
    :body (loading-page)})
 
+(defn metrics-handler
+  [metrics-registry _req]
+  {:status 200
+   :headers {"Content-Type" "text/html"}
+   :body (prometheus-export/text-format metrics-registry)})
+
 (defn pubsub-handler [_req]
   {:status 200
    :headers {"Content-Type" "text/html"}
    :body (clojure.pprint/pprint _req)})
 
 ;; Handler
-(defn app [{:keys [ring-ajax-get-or-ws-handshake
-                   ring-ajax-post
-                   pubsub]}]
-  (reitit-ring/ring-handler
-   (reitit-ring/router
-    [["/" {:get {:handler index-handler}}]
-     ["/items"
-      ["" {:get {:handler index-handler}}]
-      ["/:item-id" {:get {:handler index-handler
-                          :parameters {:path {:item-id int?}}}}]]
-     ["/about" {:get {:handler index-handler}}]
-     ["/pubsub" {:get {:handler pubsub-handler}}]
-     ["/chsk" {:get {:handler ring-ajax-get-or-ws-handshake}
-               :post {:handler ring-ajax-post}}]])
-   (reitit-ring/routes
-    (reitit-ring/create-resource-handler {:path "/" :root "/public"})
-    (reitit-ring/create-default-handler))
-   {:middleware (conj middleware
-                      wrap-keyword-params
-                      wrap-params
-                      wrap-anti-forgery
-                      wrap-session
-                      )}))
+(defn app [{:keys [ws-router metrics-registry]}]
+  (let [{:keys [ring-ajax-get-or-ws-handshake ring-ajax-post]} ws-router]
+    (reitit-ring/ring-handler
+     (reitit-ring/router
+      [["/" {:get {:handler index-handler}}]
+       ["/items"
+        ["" {:get {:handler index-handler}}]
+        ["/:item-id" {:get {:handler index-handler
+                            :parameters {:path {:item-id int?}}}}]]
+       ["/about" {:get {:handler index-handler}}]
+       ["/pubsub" {:get {:handler pubsub-handler}}]
+       ["/chsk" {:get {:handler ring-ajax-get-or-ws-handshake}
+                 :post {:handler ring-ajax-post}}]
+       ["/metrics" {:get {:handler (partial metrics-handler metrics-registry)}}]])
+     (reitit-ring/routes
+      (reitit-ring/create-resource-handler {:path "/" :root "/public"})
+      (reitit-ring/create-default-handler))
+     {:middleware (conj middleware
+                        wrap-keyword-params
+                        wrap-params
+                        wrap-anti-forgery
+                        wrap-session
+                        )})))

@@ -9,7 +9,8 @@
      [ring.middleware.file-info :refer [wrap-file-info]]
      [ring.middleware.file :refer [wrap-file]]
      [org.httpkit.server :refer [run-server]]
-     [integrant.core :as ig])
+     [integrant.core :as ig]
+     [iapetos.core :as prometheus])
     (:gen-class))
 
 (def config
@@ -19,17 +20,22 @@
           :pubsub/gcp nil}
    :repl {:adapter/http-kit {:port (or (env :port) 3000)
                              :handler (ig/ref :handler/app-dev)}
-          :handler/app-dev {:pubsub (ig/ref :pubsub/gcp)
-                            :ws-router (ig/ref :ws-router/sente)}
-          :pubsub/gcp nil
-          :clj-gcp.pub-sub.core/subscriber {:handler pubsub-mw/handler
+          :handler/app-dev {:subscriber (ig/ref :clj-gcp.pub-sub.core/subscriber)
+                            :ws-router (ig/ref :ws-router/sente)
+                            :metrics-registry (ig/ref :prometheus/collector-registry)}
+          :clj-gcp.pub-sub.core/subscriber {:handler pubsub-mw/handler ;; is the pattern of having each component's init-key held within it's source code files a nice one?
                                             :project-id (env :project-id)
                                             :pull-max-messages 10
                                             :subscription-id "DELETEME.subber"
-                                            :metrics-registry pubsub-mw/metrics-registry
+                                            :metrics-registry (ig/ref :prometheus/collector-registry)
                                             :json? false
                                             }
+          :prometheus/collector-registry nil
           :ws-router/sente nil}})
+
+
+;; ------------------
+;; Init methods
 
 (defmethod ig/init-key :adapter/jetty [_ {:keys [handler] :as opts}]
   (run-jetty handler (-> opts
@@ -45,14 +51,13 @@
                           (dissoc :handler)
                           (assoc :join? false))))
 
-(defmethod ig/init-key :handler/app [_ {:keys [pubsub]}]
-  (app pubsub))
+(defmethod ig/init-key :handler/app [_ opts]
+  (app opts))
 
-(defmethod ig/init-key :handler/app-dev [_ {:keys [ws-router pubsub]}]
-  (let [opts (merge ws-router pubsub)]
-    (-> (app opts)
-        (wrap-file "resources")
-        (wrap-file-info))))
+(defmethod ig/init-key :handler/app-dev [_ opts]
+  (-> (app opts)
+      (wrap-file "resources")
+      (wrap-file-info)))
 
 (defmethod ig/init-key :pubsub/gcp [_ _]
   {:fools "gold"})
@@ -62,6 +67,12 @@
    :ring-ajax-post sente-mw/ring-ajax-post ;; is it sensible to manage these calls like this?
    :ring-ajax-get-or-ws-handshake sente-mw/ring-ajax-get-or-ws-handshake})
 
+(defmethod ig/init-key :prometheus/collector-registry [_ _]
+  (-> (prometheus/collector-registry)
+      pubsub-mw/metrics-registry))
+
+;; -------------------------
+;; Halt methods
 (defmethod ig/halt-key! :adapter/jetty [_ jetty]
    (.stop jetty))
 
@@ -74,5 +85,7 @@
 (defmethod ig/halt-key! :ws-router/sente [_ {:keys [router-stop-fn]}]
   (router-stop-fn))
 
+;; -------------------------
+;; Main
 (defn -main [& args]
   (ig/init (:prod config)))
