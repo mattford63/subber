@@ -1,6 +1,7 @@
 (ns subber.system
     (:require
-     [subber.handler :refer [app sente-start-router! sente-stop-router!]]
+     [subber.handler :refer [app]]
+     [subber.middleware.sente :as sente-mw]
      [config.core :refer [env]]
      [ring.adapter.jetty :refer [run-jetty]]
      [ring.server.standalone :refer [serve]]
@@ -18,7 +19,7 @@
    :repl {:adapter/http-kit {:port (or (env :port) 3000)
                              :handler (ig/ref :handler/app-dev)}
           :handler/app-dev {:pubsub (ig/ref :pubsub/gcp)
-                            :sente (ig/ref :ws-router/sente)}
+                            :ws-router (ig/ref :ws-router/sente)}
           :pubsub/gcp nil
           :ws-router/sente nil}})
 
@@ -39,16 +40,19 @@
 (defmethod ig/init-key :handler/app [_ {:keys [pubsub]}]
   (app pubsub))
 
-(defmethod ig/init-key :handler/app-dev [_ {:keys [pubsub]}]
-  (-> (app pubsub)
-      (wrap-file "resources")
-      (wrap-file-info)))
+(defmethod ig/init-key :handler/app-dev [_ {:keys [ws-router pubsub]}]
+  (let [opts (merge ws-router pubsub)]
+    (-> (app opts)
+        (wrap-file "resources")
+        (wrap-file-info))))
 
 (defmethod ig/init-key :pubsub/gcp [_ _]
   {:fools "gold"})
 
 (defmethod ig/init-key :ws-router/sente [_ _]
-  (sente-start-router!))
+  {:router-stop-fn (sente-mw/start-router!) ;; pattern: services return the fn to stop them.
+   :ring-ajax-post sente-mw/ring-ajax-post ;; is it sensible to manage these calls like this?
+   :ring-ajax-get-or-ws-handshake sente-mw/ring-ajax-get-or-ws-handshake})
 
 (defmethod ig/halt-key! :adapter/jetty [_ jetty]
    (.stop jetty))
@@ -59,8 +63,8 @@
 (defmethod ig/halt-key! :adapter/http-kit [_ server]
   (server))
 
-(defmethod ig/halt-key! :ws-router/sente [_ server]
-  (sente-stop-router!))
+(defmethod ig/halt-key! :ws-router/sente [_ {:keys [router-stop-fn]}]
+  (router-stop-fn))
 
 (defn -main [& args]
   (ig/init (:prod config)))
