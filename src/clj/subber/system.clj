@@ -2,6 +2,7 @@
     (:require
      [subber.handler :refer [app]]
      [subber.middleware.sente :as sente-mw]
+     [subber.middleware.pubsub :as pubsub-mw]
      [config.core :refer [env]]
      [ring.adapter.jetty :refer [run-jetty]]
      [ring.server.standalone :refer [serve]]
@@ -21,6 +22,13 @@
           :handler/app-dev {:pubsub (ig/ref :pubsub/gcp)
                             :ws-router (ig/ref :ws-router/sente)}
           :pubsub/gcp nil
+          :clj-gcp.pub-sub.core/subscriber {:handler pubsub-mw/handler
+                                            :project-id (env :project-id)
+                                            :pull-max-messages 10
+                                            :subscription-id "DELETEME.subber"
+                                            :metrics-registry pubsub-mw/metrics-registry
+                                            :json? false
+                                            }
           :ws-router/sente nil}})
 
 (defmethod ig/init-key :adapter/jetty [_ {:keys [handler] :as opts}]
