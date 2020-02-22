@@ -77,13 +77,18 @@
   (let [[?uid ?csrf-token ?handshake-data] ?data]
     (->output! "Handshake: %s" ?data)))
 
-(def app-state
-  (atom {:last-recv-pubsub {}}))
+(defonce recieved-msgs (atom (sorted-map)))
+
+(defonce counter (atom 0))
+
+(defn add-msg [msg]
+  (let [id (swap! counter inc)]
+    (swap! recieved-msgs assoc id msg)))
 
 (defmethod -event-msg-handler :pubsub/msg
   [{:as ev-msg :keys [?data]}]
   (->output! "Push event from server: %s" ?data)
-  (swap! app-state assoc-in [:last-recv-pubsub] ?data))
+  (add-msg ?data))
 
 ;; -------------------------
 ;; Sente event router (our `event-msg-handler` loop)
@@ -211,8 +216,12 @@
       [:li [:a {:href "/broken/link"} "Broken link"]]]
      buttons
      [expanding-textarea {:max-rows 10}]
-     [:ul
-      [:li (get-in @app-state [:last-recv-pubsub :payload])]]]))
+     [:ul#msg-list
+      (map (fn [msg] [:li {:name (str "msg-" (key msg))
+                           :key (str "msg-" (key msg))}
+                      (key msg) " -- " (get-in (val msg) [:payload])
+                      " :: " (take 16 (get-in (val msg) [:pubsub/ack-id]))])
+           (take 10 (reverse @recieved-msgs)))]]))
 
 (defn items-page []
   (fn []
