@@ -24,7 +24,7 @@
                             :publisher (ig/ref :pubsub/publisher)
                             :ws-router (ig/ref :ws-router/sente)
                             :metrics-registry (ig/ref :prometheus/collector-registry)}
-          :clj-gcp.pub-sub.core/subscriber {:handler pubsub-mw/handler ;; is the pattern of having each component's init-key held within it's source code files a nice one?
+          :clj-gcp.pub-sub.core/subscriber {:handler (ig/ref :pubsub/sente-handler)
                                             :project-id (env :project-id)
                                             :pull-max-messages 10
                                             :subscription-id "DELETEME.subber"
@@ -33,6 +33,7 @@
                                             }
           :pubsub/publisher {:project-id (env :project-id)
                              :topic-id "DELETEME.subber"}
+          :pubsub/sente-handler {:sente (ig/ref :ws-router/sente)}
           :prometheus/collector-registry nil
           :ws-router/sente {:publisher (ig/ref :pubsub/publisher)}}})
 
@@ -68,7 +69,12 @@
 (defmethod ig/init-key :ws-router/sente [_ opts]
   {:router-stop-fn (sente-mw/start-router! opts) ;; pattern: services return the fn to stop them.
    :ring-ajax-post sente-mw/ring-ajax-post ;; is it sensible to manage these calls like this?
-   :ring-ajax-get-or-ws-handshake sente-mw/ring-ajax-get-or-ws-handshake})
+   :ring-ajax-get-or-ws-handshake sente-mw/ring-ajax-get-or-ws-handshake
+   :chsk-send! sente-mw/chsk-send!
+   :connected-uids sente-mw/connected-uids})
+
+(defmethod ig/init-key :pubsub/sente-handler [_ {:keys [sente]}]
+  (partial pubsub-mw/sente-handler (:chsk-send! sente) (:connected-uids sente)))
 
 (defmethod ig/init-key :prometheus/collector-registry [_ _]
   (-> (prometheus/collector-registry)

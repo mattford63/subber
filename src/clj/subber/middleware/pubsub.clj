@@ -9,11 +9,13 @@
             )
   (:import java.util.UUID))
 
+;; ring middlware
 (defn pubsub [ps]
   (fn [handler]
     (fn [req]
       (handler (assoc req :pubsub ps)))))
 
+;; pubsub admin
 (defn create-topic []
   (let [topic-id "DELETEME.subber"]
     (sut-admin/create-topic (env :project-id) topic-id)))
@@ -28,6 +30,7 @@
         ack-deadline-seconds 30]
     (sut-admin/create-subscription (env :project-id) topic-id subscription-id ack-deadline-seconds)))
 
+;; pubsub simple subscriber handler and state for received messages
 (def seen-msgs (atom []))
 
 (defn see-req!
@@ -40,6 +43,14 @@
     (see-req! seen-msgs msg))
   (map #(assoc % :ok? true) msgs))
 
+;; pubsub handler to broadcast all messages via Sente
+(defn sente-handler [chsk-send! connected-uids msgs]
+  (doseq [uid (:any @connected-uids)]
+    (doseq [msg msgs]
+      (chsk-send! uid [:pubsub/msg msg])))
+  (map #(assoc % :ok? true) msgs))
+
+;; prometheus monitoring
 (defn metrics-registry [registry]
   (-> registry
       (prometheus/register
@@ -48,6 +59,8 @@
         {:description "life-cycle of pub-sub msgs",
          :labels      [:state]}))))
 
+;; very quick and hacky publisher
+;; - TODO use a proper publisher i.e add to clj-gcp a publisher in the same style as the subscriber
 (defn publish [project topic msg]
   (mqu/pubsub-publish msg project topic))
 
