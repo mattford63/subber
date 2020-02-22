@@ -3,7 +3,7 @@
    [taoensso.sente :as sente]
    [taoensso.sente.server-adapters.http-kit :refer [get-sch-adapter]]
    [clojure.core.async :as async  :refer (<! <!! >! >!! put! chan go go-loop)]
-   [taoensso.encore    :as encore :refer (have have?)]
+   [taoensso.encore    :as encore :refer (swap-in! reset-in! swapped have have! have?)]
    [taoensso.timbre    :as timbre :refer (tracef debugf infof warnf errorf)]
    [taoensso.sente     :as sente]
    ))
@@ -31,14 +31,14 @@
 
 (defn event-msg-handler
   "Wraps `-event-msg-handler`"
-  [{:as ev-msg :keys [id ?data event]}]
-  (-event-msg-handler ev-msg)
+  [{:as ev-msg :keys [id ?data event]} {:as opts :or {}}]
+  (-event-msg-handler ev-msg opts)
   ;; (future (-event-msg-handler ev-msg))
   )
 
 (defmethod -event-msg-handler
   :default
-  [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
+  [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]} _]
   "Default event message handler"
   "default"
   (let [session (:session ring-req)
@@ -49,19 +49,65 @@
 
 (defmethod -event-msg-handler
   :fn/inc
-  [{:as ev-msg :keys [?data ?reply-fn]}]
+  [{:as ev-msg :keys [?data ?reply-fn]} _]
   "increment a number"
   "inc"
   (when ?reply-fn
     (?reply-fn (update-in ?data [:counter] inc))))
 
+(defmethod -event-msg-handler ;; this looks horrible!! Must be a better way...
+  :pubsub/publish
+  [{:as ev-msg :keys [?data]} {:keys [publisher]}]
+  "Publish data to pubsub"
+  (publisher (:text ?data)))
+
 ;; Sente event router
+
+(defn- -start-chsk-router!
+  [server? ch-recv event-msg-handler event-msg-handler-opts opts]
+  (let [{:keys [trace-evs? error-handler simple-auto-threading?]} opts
+        ch-ctrl (chan)
+        execute1 (if simple-auto-threading?
+                   (fn [f] (future-call f))
+                   (fn [f] (f)))]
+
+    (go-loop []
+      (let [[v p] (async/alts! [ch-recv ch-ctrl])
+            stop? (or (= p ch-ctrl) (nil? v))]
+
+        (when-not stop?
+          (let [{:as event-msg :keys [event]} v]
+
+            (execute1
+              (fn []
+                (encore/catching
+                  (do
+                    (when trace-evs? (tracef "Pre-handler event: %s" event))
+                    (event-msg-handler
+                      (if server?
+                        (have! sente/server-event-msg? event-msg)
+                        (have! sente/client-event-msg? event-msg))
+                      event-msg-handler-opts))
+                  e1
+                  (encore/catching
+                    (if-let [eh error-handler]
+                      (error-handler e1 event-msg)
+                       (errorf e1 "Chsk router `event-msg-handler` error: %s" event))
+                    e2 (errorf e2 "Chsk router `error-handler` error: %s"     event)))))
+
+            (recur)))))
+
+    (fn stop! [] (async/close! ch-ctrl))))
+
+(defn start-server-chsk-router!
+  "Creates a simple go-loop to call `(event-msg-handler <server-event-msg>)`
+  Or for simple automatic future-based threading of every request, enable
+  the `:simple-auto-threading?` opt (disabled by default)."
+  [ch-recv event-msg-handler event-msg-handler-opts &
+   [{:as opts :keys [trace-evs? error-handler simple-auto-threading?]}]]
+  (-start-chsk-router! :server ch-recv event-msg-handler event-msg-handler-opts opts))
+
 (defn stop-router! [router] (router))
 
-(defn start-router! [{:keys [publisher]}]
-  (defmethod -event-msg-handler ;; this looks horrible!! Must be a better way...
-    :pubsub/publish
-    [{:as ev-msg :keys [?data]}]
-    "Publish data to pubsub"
-    (publisher (:text ?data)))
-  (sente/start-server-chsk-router! ch-chsk event-msg-handler))
+(defn start-router! [event-msg-handler-opts]
+  (start-server-chsk-router! ch-chsk event-msg-handler event-msg-handler-opts))
