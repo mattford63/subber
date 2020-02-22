@@ -55,11 +55,18 @@
   (when ?reply-fn
     (?reply-fn (update-in ?data [:counter] inc))))
 
-(defmethod -event-msg-handler ;; this looks horrible!! Must be a better way...
+(defmethod -event-msg-handler
   :pubsub/publish
   [{:as ev-msg :keys [?data]} {:keys [publisher]}]
   "Publish data to pubsub"
   (publisher (:text ?data)))
+
+(defmethod -event-msg-handler
+  :pubsub/settings
+  [{:as ev-msg :keys [?reply-fn]} {:keys [project-id topic-id subscription-id] :as opts}]
+  "Return pubsub connection settings"
+  (when ?reply-fn
+    (?reply-fn {:project-id project-id :topic-id topic-id :subscription-id subscription-id})))
 
 ;; Sente event router
 
