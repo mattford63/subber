@@ -35,7 +35,7 @@
       (sente/make-channel-socket-client! "/chsk" ; Note the same path as before
                                          ?csrf-token
                                          {:type :auto ; e/o #{:auto :ajax :ws}
-                                          })]
+                                          :wrap-recv-evs? false})]
   (def chsk       chsk)
   (def ch-chsk    ch-recv) ; ChannelSocket's receive channel
   (def chsk-send! send-fn) ; ChannelSocket's send API fn
@@ -76,6 +76,14 @@
   [{:as ev-msg :keys [?data]}]
   (let [[?uid ?csrf-token ?handshake-data] ?data]
     (->output! "Handshake: %s" ?data)))
+
+(def app-state
+  (atom {:last-recv-pubsub {}}))
+
+(defmethod -event-msg-handler :pubsub/msg
+  [{:as ev-msg :keys [?data]}]
+  (->output! "Push event from server: %s" ?data)
+  (swap! app-state assoc-in [:last-recv-pubsub] ?data))
 
 ;; -------------------------
 ;; Sente event router (our `event-msg-handler` loop)
@@ -202,7 +210,9 @@
       [:li [:a {:href (path-for :items)} "Items of subber"]]
       [:li [:a {:href "/broken/link"} "Broken link"]]]
      buttons
-     [expanding-textarea {:max-rows 10}]]))
+     [expanding-textarea {:max-rows 10}]
+     [:ul
+      [:li (get-in @app-state [:last-recv-pubsub :payload])]]]))
 
 (defn items-page []
   (fn []
