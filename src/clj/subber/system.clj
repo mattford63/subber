@@ -23,12 +23,12 @@
           :clj-gcp.pub-sub.core/subscriber {:handler (ig/ref :pubsub/sente-handler)
                                             :project-id (env :project-id)
                                             :pull-max-messages 10
-                                            :subscription-id "DELETEME.subber"
+                                            :subscription-id (env :subscription-id)
                                             :metrics-registry (ig/ref :prometheus/collector-registry)
                                             :json? false
                                             }
           :pubsub/publisher {:project-id (env :project-id)
-                             :topic-id "DELETEME.subber"}
+                             :topic-id (env :subscription-id)}
           :pubsub/sente-handler {:sente (ig/ref :ws-router/sente)}
           :prometheus/collector-registry nil
           :ws-router/sente {:publisher (ig/ref :pubsub/publisher)}}
@@ -41,15 +41,18 @@
           :clj-gcp.pub-sub.core/subscriber {:handler (ig/ref :pubsub/sente-handler)
                                             :project-id (env :project-id)
                                             :pull-max-messages 10
-                                            :subscription-id "DELETEME.subber"
+                                            :subscription-id (env :subscription-id)
                                             :metrics-registry (ig/ref :prometheus/collector-registry)
                                             :json? false
                                             }
           :pubsub/publisher {:project-id (env :project-id)
-                             :topic-id "DELETEME.subber"}
+                             :topic-id (env :topic-id)}
           :pubsub/sente-handler {:sente (ig/ref :ws-router/sente)}
           :prometheus/collector-registry nil
-          :ws-router/sente {:publisher (ig/ref :pubsub/publisher)}}})
+          :ws-router/sente {:publisher (ig/ref :pubsub/publisher)
+                            :project-id (env :project-id)
+                            :topic-id (env :topic-id)
+                            :subscription-id (env :subscription-id)}}})
 
 ;; ------------------
 ;; Init methods

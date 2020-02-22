@@ -1,1 +1,3 @@
-{:project-id "tx-cts-dpil-dev-03" }
+{:project-id "tx-cts-dpil-dev-03"
+ :subscription-id "DELETEME.subber"
+ :topic-id "DELETEME.subber"}
