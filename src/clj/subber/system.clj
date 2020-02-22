@@ -14,10 +14,24 @@
     (:gen-class))
 
 (def config
-  {:prod {:adapter/jetty {:port (or (env :port) 3000)
-                          :handler (ig/ref :handler/app)}
-          :handler/app {:pubsub (ig/ref :pubsub/gcp)}
-          :pubsub/gcp nil}
+  {:prod {:adapter/http-kit {:port (or (env :port) 3000)
+                             :handler (ig/ref :handler/app)}
+          :handler/app {:subscriber (ig/ref :clj-gcp.pub-sub.core/subscriber)
+                        :publisher (ig/ref :pubsub/publisher)
+                        :ws-router (ig/ref :ws-router/sente)
+                        :metrics-registry (ig/ref :prometheus/collector-registry)}
+          :clj-gcp.pub-sub.core/subscriber {:handler (ig/ref :pubsub/sente-handler)
+                                            :project-id (env :project-id)
+                                            :pull-max-messages 10
+                                            :subscription-id "DELETEME.subber"
+                                            :metrics-registry (ig/ref :prometheus/collector-registry)
+                                            :json? false
+                                            }
+          :pubsub/publisher {:project-id (env :project-id)
+                             :topic-id "DELETEME.subber"}
+          :pubsub/sente-handler {:sente (ig/ref :ws-router/sente)}
+          :prometheus/collector-registry nil
+          :ws-router/sente {:publisher (ig/ref :pubsub/publisher)}}
    :repl {:adapter/http-kit {:port (or (env :port) 3000)
                              :handler (ig/ref :handler/app-dev)}
           :handler/app-dev {:subscriber (ig/ref :clj-gcp.pub-sub.core/subscriber)
@@ -36,7 +50,6 @@
           :pubsub/sente-handler {:sente (ig/ref :ws-router/sente)}
           :prometheus/collector-registry nil
           :ws-router/sente {:publisher (ig/ref :pubsub/publisher)}}})
-
 
 ;; ------------------
 ;; Init methods
