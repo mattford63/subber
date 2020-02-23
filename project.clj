@@ -83,6 +83,10 @@
    :css-dirs ["resources/public/css"]
    }
 
+  :bin {:name "subber"
+        :bin-path "~/bin"
+        :jvm-opts ["-server" "-Dfile.enconding=utf-8" "$JVM_OPTS"]}
+
   :profiles {:dev {:repl-options {:init-ns subber.repl}
                    :dependencies [[cider/piggieback "0.4.2"]
                                   [binaryage/devtools "0.9.11"]
@@ -98,13 +102,15 @@
                              [org.clojure/tools.namespace "0.3.0-alpha4"
                               :exclusions [org.clojure/tools.reader]]
                              [refactor-nrepl "2.5.0-SNAPSHOT"
-                              :exclusions [org.clojure/clojure]]]
+                              :exclusions [org.clojure/clojure]]
+                             [lein-binplus "0.6.6"]]
                    :injections [(require 'pjstadig.humane-test-output)
                                 (pjstadig.humane-test-output/activate!)]
                    :env {:dev true}}
 
              :uberjar {:hooks [minify-assets.plugin/hooks]
-                       :source-paths ["env/prod/clj" "config"]
+                       :source-paths ["env/prod/clj"]
+                       :resource-paths ["config"]
                        :prep-tasks ["compile" ["cljsbuild" "once" "min"]]
                        :env {:production true}
                        :aot :all

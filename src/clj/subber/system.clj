@@ -10,7 +10,8 @@
      [ring.middleware.file :refer [wrap-file]]
      [org.httpkit.server :refer [run-server]]
      [integrant.core :as ig]
-     [iapetos.core :as prometheus])
+     [iapetos.core :as prometheus]
+     [taoensso.timbre :as timbre :refer (tracef debugf infof warnf errorf)])
     (:gen-class))
 
 (def config
@@ -116,4 +117,9 @@
 ;; -------------------------
 ;; Main
 (defn -main [& args]
-  (ig/init (:prod config)))
+  (ig/init (:prod config))
+  (let [uri (str "http://localhost:" (get-in config [:prod :adapter/http-kit :port]))]
+    (infof "Web server is running at `%s`" uri)
+    (try
+      (.browse (java.awt.Desktop/getDesktop) (java.net.URI. uri))
+      (catch java.awt.HeadlessException _))))
